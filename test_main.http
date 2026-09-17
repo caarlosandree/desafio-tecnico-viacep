@@ -1,11 +1,61 @@
-# Test your FastAPI endpoints
+# Requisições para testar a API de Endereços (HTTP Client do PyCharm)
+# Suba a API antes: uvicorn app.main:app --reload
 
-GET http://127.0.0.1:8000/
+@baseUrl = http://127.0.0.1:8000
+@api = {{baseUrl}}/api/v1
+@cep = 01001-000
+
+### Health check (API + banco)
+GET {{baseUrl}}/health
+Accept: application/json
+
+### Extrair um endereço do ViaCEP e salvar na base
+POST {{api}}/enderecos/{{cep}}
+Accept: application/json
+
+### Extrair outros CEPs para testar filtros
+POST {{api}}/enderecos/01310-100
 Accept: application/json
 
 ###
-
-GET http://127.0.0.1:8000/hello/User
+POST {{api}}/enderecos/22070-002
 Accept: application/json
 
-###
+### CEP inexistente no ViaCEP (404)
+POST {{api}}/enderecos/99999999
+Accept: application/json
+
+### CEP inválido (422)
+POST {{api}}/enderecos/123
+Accept: application/json
+
+### Listar endereços salvos
+GET {{api}}/enderecos
+Accept: application/json
+
+### Listar filtrando por UF
+GET {{api}}/enderecos?uf=SP
+Accept: application/json
+
+### Listar filtrando por parte da cidade, com paginação
+GET {{api}}/enderecos?localidade=paulo&limit=1&offset=0
+Accept: application/json
+
+### Parâmetro inválido (422)
+GET {{api}}/enderecos?uf=XYZ
+Accept: application/json
+
+### Consultar um endereço salvo
+GET {{api}}/enderecos/{{cep}}
+Accept: application/json
+
+### Consultar CEP que não está na base (404)
+GET {{api}}/enderecos/69900-000
+Accept: application/json
+
+### Remover um endereço salvo (204)
+DELETE {{api}}/enderecos/{{cep}}
+
+### Documentação OpenAPI (o Swagger fica em {{baseUrl}}/docs)
+GET {{baseUrl}}/openapi.json
+Accept: application/json
