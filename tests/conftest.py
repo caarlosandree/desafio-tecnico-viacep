@@ -1,4 +1,8 @@
+import os
+
 import pytest
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -13,15 +17,40 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-@pytest.fixture
-async def session():
-    """Sessão ligada a uma transação que é desfeita ao fim de cada teste."""
-    engine = create_async_engine(get_settings().database_url)
+@pytest.fixture(scope="session")
+def database_url() -> str:
+    """URL de um banco exclusivo para testes, criado se ainda não existir.
+
+    Usa TEST_DATABASE_URL, se definida; senão, o banco da aplicação com sufixo _test.
+    """
+    if url_env := os.getenv("TEST_DATABASE_URL"):
+        url = make_url(url_env)
+    else:
+        url = make_url(get_settings().database_url)
+        url = url.set(database=f"{url.database}_test")
+
+    admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     try:
-        conexao = await engine.connect()
+        with admin.connect() as conexao:
+            existe = conexao.scalar(
+                text("SELECT 1 FROM pg_database WHERE datname = :nome"),
+                {"nome": url.database},
+            )
+            if not existe:
+                conexao.execute(text(f'CREATE DATABASE "{url.database}"'))
     except OperationalError:
-        await engine.dispose()
         pytest.skip("Postgres indisponível: rode `docker compose up -d db`")
+    finally:
+        admin.dispose()
+
+    return url.render_as_string(hide_password=False)
+
+
+@pytest.fixture
+async def session(database_url):
+    """Sessão ligada a uma transação que é desfeita ao fim de cada teste."""
+    engine = create_async_engine(database_url)
+    conexao = await engine.connect()
 
     transacao = await conexao.begin()
     await conexao.run_sync(Base.metadata.create_all)

@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -11,9 +12,11 @@ class Settings(BaseSettings):
     database_url: str
     viacep_base_url: str = "https://viacep.com.br/ws"
     http_timeout: float = 5.0
-    api_key: str
+    api_key: SecretStr
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=BASE_DIR / ".env", env_file_encoding="utf-8"
+    )
 
 
 @lru_cache
