@@ -142,3 +142,6 @@ $RECYCLE.BIN/
 # Linux
 .directory
 .Trash-*
+
+# HTTP Client do PyCharm (contém a chave de API)
+http-client.private.env.json

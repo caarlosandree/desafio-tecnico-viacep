@@ -1,11 +1,13 @@
 # Requisições para testar a API de Endereços (HTTP Client do PyCharm)
-# Suba a API antes: uvicorn app.main:app --reload
+# Suba a API antes: docker compose up -d --build  (ou uvicorn app.main:app --reload)
+#
+# Selecione o ambiente "dev" no topo do editor. As variáveis vêm de:
+#   http-client.env.json          -> baseUrl (versionado)
+#   http-client.private.env.json  -> apiKey  (fora do Git; copie o formato abaixo)
+#   { "dev": { "apiKey": "<valor de API_KEY do .env>" } }
 
-@baseUrl = http://127.0.0.1:8000
 @api = {{baseUrl}}/api/v1
 @cep = 01001-000
-# Mesmo valor de API_KEY no seu .env
-@apiKey = troque-por-uma-chave-forte
 
 ### Health check (API + banco)
 GET {{baseUrl}}/health
