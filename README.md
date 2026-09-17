@@ -1,4 +1,4 @@
-# API de Endereços — Desafio Técnico ViaCEP
+# API de Endereços - Desafio Técnico ViaCEP
 
 [![CI](https://github.com/caarlosandree/desafio-tecnico-viacep/actions/workflows/ci.yml/badge.svg)](https://github.com/caarlosandree/desafio-tecnico-viacep/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.14-3776AB?logo=python&logoColor=white)
@@ -33,6 +33,7 @@ API REST que **extrai endereços da API pública [ViaCEP](https://viacep.com.br)
 - [Desenvolvimento local (sem Docker)](#desenvolvimento-local-sem-docker)
 - [Testes e qualidade](#testes-e-qualidade)
 - [Decisões técnicas](#decisões-técnicas)
+- [Limites de escopo](#limites-de-escopo)
 - [CI e fluxo de contribuição](#ci-e-fluxo-de-contribuição)
 - [Licença](#licença)
 - [Solução de problemas](#solução-de-problemas)
@@ -190,7 +191,7 @@ X-RateLimit-Remaining: 57
 
 Ao estourar, a API responde `429` com `Retry-After` (em segundos) e `{"detail": "Limite de requisições excedido. Tente de novo em instantes."}`. O `/health` fica de fora, para o healthcheck do Docker não consumir a cota.
 
-O cliente é identificado pelo IP. Atrás de um proxy, o uvicorn roda com `--proxy-headers`, então o IP considerado é o do `X-Forwarded-For` — o que exige confiar no proxy à frente da API.
+O cliente é identificado pelo IP. Atrás de um proxy, o uvicorn roda com `--proxy-headers`, então o IP considerado é o do `X-Forwarded-For`, o que exige confiar no proxy à frente da API.
 
 ---
 
@@ -210,8 +211,8 @@ Base: `http://localhost:8000`
 
 | Parâmetro | Tipo | Padrão | Regra |
 |---|---|---|---|
-| `uf` | string | — | 2 letras; não diferencia maiúsculas de minúsculas |
-| `localidade` | string | — | 2 a 120 caracteres; busca por parte do nome, sem diferenciar maiúsculas de minúsculas |
+| `uf` | string | - | 2 letras; não diferencia maiúsculas de minúsculas |
+| `localidade` | string | - | 2 a 120 caracteres; busca por parte do nome, sem diferenciar maiúsculas de minúsculas |
 | `limit` | int | 20 | de 1 a 100 |
 | `offset` | int | 0 | ≥ 0 |
 
@@ -367,8 +368,8 @@ Definidas no `.env` (modelo em [`.env.example`](.env.example)):
 
 | Variável | Obrigatória | Padrão | Uso |
 |---|---|---|---|
-| `API_KEY` | **sim** | — | Chave exigida no header `X-API-Key` |
-| `DATABASE_URL` | sim, fora do Docker | — | URL do banco usada ao rodar a API localmente. No Compose, ela é montada a partir das variáveis `POSTGRES_*`, com o host `db` |
+| `API_KEY` | **sim** | - | Chave exigida no header `X-API-Key` |
+| `DATABASE_URL` | sim, fora do Docker | - | URL do banco usada ao rodar a API localmente. No Compose, ela é montada a partir das variáveis `POSTGRES_*`, com o host `db` |
 | `APP_NAME` | não | `API de Endereços` | Título exibido no Swagger |
 | `VIACEP_BASE_URL` | não | `https://viacep.com.br/ws` | URL base do ViaCEP |
 | `HTTP_TIMEOUT` | não | `3` | Timeout, em segundos, de **cada** chamada ao ViaCEP |
@@ -467,15 +468,26 @@ Sem o banco disponível, os testes que dependem dele são marcados como *skipped
 
 - **Camadas separadas (rota → serviço → cliente/banco):** as rotas não conhecem HTTP externo nem SQL. O serviço recebe suas dependências por injeção, o que permite testá-lo com um ViaCEP falso.
 - **Tudo assíncrono:** como o FastAPI, o httpx e o SQLAlchemy usam `async`, a espera pelo ViaCEP ou pelo banco não bloqueia outras requisições. Um único `httpx.AsyncClient` é compartilhado pela aplicação, criado no `lifespan`.
-- **Idempotência com chave natural:** o CEP é a chave de deduplicação — `POST` repetido atualiza o registro e responde `200` em vez de `201`, e `DELETE` repetido retorna `404` sem alterar o estado, informando ao cliente que o recurso já não existia.
-- **Distinguir criação de atualização sem coluna de sistema:** o `POST` tenta primeiro `UPDATE ... RETURNING`. Se a linha volta, o CEP já existia (`200`); se não volta, roda `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`, que nunca falha e absorve a inserção concorrente do mesmo CEP (`201`). A alternativa comum — `xmax = 0` no `RETURNING` do upsert — funciona, mas depende de uma coluna de sistema do Postgres cujo comportamento não é contrato documentado. Comparar `created_at` com `updated_at` também não serve: `now()` é o timestamp da **transação**, então duas importações na mesma transação seriam indistinguíveis. O custo desta escolha é um round trip extra no caminho de criação e uma imprecisão só em foto-finish: se duas requisições do mesmo CEP inédito chegarem juntas, ambas podem responder `201` — o estado final continua correto, com um único registro.
-- **Retentativas só para falhas temporárias:** uma consulta ao ViaCEP é repetida até 3 vezes, com espera que dobra a cada tentativa (0,2s e depois 0,4s), quando a falha é timeout, erro de rede ou status `429`/`5xx`. Erros `4xx`, respostas malformadas e CEP inexistente falham de imediato — repeti-los não mudaria o resultado e só atrasaria a resposta. Como o pior caso soma os timeouts de todas as tentativas, o `HTTP_TIMEOUT` padrão é 3s: 3 × 3s + 0,6s de espera ≈ 9,6s no limite. A espera é determinística, sem *jitter*: com uma única instância não existe efeito manada; com várias réplicas, valeria adicioná-lo.
+- **Idempotência com chave natural:** o CEP é a chave de deduplicação. `POST` repetido atualiza o registro e responde `200` em vez de `201`, e `DELETE` repetido retorna `404` sem alterar o estado, informando ao cliente que o recurso já não existia.
+- **Distinguir criação de atualização sem coluna de sistema:** o `POST` tenta primeiro `UPDATE ... RETURNING`. Se a linha volta, o CEP já existia (`200`); se não volta, roda `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`, que nunca falha e absorve a inserção concorrente do mesmo CEP (`201`). A alternativa comum (`xmax = 0` no `RETURNING` do upsert) funciona, mas depende de uma coluna de sistema do Postgres cujo comportamento não é contrato documentado. Comparar `created_at` com `updated_at` também não serve: `now()` é o timestamp da **transação**, então duas importações na mesma transação seriam indistinguíveis. O custo desta escolha é um round trip extra no caminho de criação e uma imprecisão só em foto-finish: se duas requisições do mesmo CEP inédito chegarem juntas, ambas podem responder `201`, mas o estado final continua correto, com um único registro.
+- **Retentativas só para falhas temporárias:** uma consulta ao ViaCEP é repetida até 3 vezes, com espera que dobra a cada tentativa (0,2s e depois 0,4s), quando a falha é timeout, erro de rede ou status `429`/`5xx`. Erros `4xx`, respostas malformadas e CEP inexistente falham de imediato, porque repeti-los não mudaria o resultado e só atrasaria a resposta. Como o pior caso soma os timeouts de todas as tentativas, o `HTTP_TIMEOUT` padrão é 3s: 3 × 3s + 0,6s de espera ≈ 9,6s no limite. A espera é determinística, sem *jitter*: com uma única instância não existe efeito manada; com várias réplicas, valeria adicioná-lo.
 - **Exceções de domínio:** `CepInvalidoError`, `CepNaoEncontradoError` e `ViaCepIndisponivelError` isolam o resto do código do `httpx`. Um único handler as converte em 422, 404 e 502.
 - **Migrations versionadas com Alembic:** a estrutura do banco é reproduzível e o container aplica as migrations ao iniciar. As constraints têm nomes padronizados (`pk_`, `uq_`, `ck_`, `ix_`).
-- **Limite de requisições em memória:** uma janela deslizante por IP protege a API e, de quebra, o ViaCEP, que é um serviço público e gratuito. Ficou sem dependência nova: são ~60 linhas em `app/core/rate_limit.py`, contra um `slowapi` que ainda exigiria `request: Request` na assinatura de cada endpoint. O preço é que **o contador vive no processo** — com vários workers ou réplicas, cada um aplica o próprio limite, e o teto real vira o número de processos vezes o configurado. Em produção, isso migra para um contador compartilhado (Redis) ou para a borda; aqui, com um container, o comportamento é o esperado.
+- **Limite de requisições em memória:** uma janela deslizante por IP protege a API e, de quebra, o ViaCEP, que é um serviço público e gratuito. Ficou sem dependência nova: são ~60 linhas em `app/core/rate_limit.py`, contra um `slowapi` que ainda exigiria `request: Request` na assinatura de cada endpoint. O preço é que **o contador vive no processo**. Com vários workers ou réplicas, cada um aplica o próprio limite, e o teto real vira o número de processos vezes o configurado. Em produção, isso migra para um contador compartilhado (Redis) ou para a borda; aqui, com um container, o comportamento é o esperado.
 - **Contêiner enxuto e seguro:** imagem `python:3.14-slim`, execução com usuário não-root, healthcheck no `/health` e `.dockerignore` excluindo `.env`, testes e caches.
-- **Versão em um lugar só:** `app/__init__.py` guarda o `__version__`; o `main.py` o expõe no OpenAPI e o `pyproject.toml` o lê de lá (`[tool.setuptools.dynamic]`), em vez de repetir o número. `importlib.metadata` seria o caminho natural, mas exigiria instalar o projeto como distribuição — o container só instala as dependências e copia o `app/`, então a consulta cairia sempre no *fallback*, que é o mesmo *hardcode* com mais cerimônia.
+- **Versão em um lugar só:** `app/__init__.py` guarda o `__version__`; o `main.py` o expõe no OpenAPI e o `pyproject.toml` o lê de lá (`[tool.setuptools.dynamic]`), em vez de repetir o número. `importlib.metadata` seria o caminho natural, mas exigiria instalar o projeto como distribuição. O container só instala as dependências e copia o `app/`, então a consulta cairia sempre no *fallback*, que é o mesmo *hardcode* com mais cerimônia.
 - **Versões fixadas:** as dependências Python e as imagens Docker (`postgres:18-alpine`) têm versões fixas, para o ambiente ser reproduzível.
+
+---
+
+## Limites de escopo
+
+O recorte abaixo é deliberado: são coisas que um serviço em produção teria e que aqui custariam mais do que entregariam. Cada uma vem com o sinal que justificaria adotá-la.
+
+- **Logs estruturados e observabilidade.** Hoje existem dois pontos de log (a retentativa ao ViaCEP e a falha que vira `502`), escritos com o `logging` da biblioteca padrão, em texto plano, sem configuração própria e sem identificador de correlação entre requisição e log. Não há métricas nem tracing. Com um container e um consumidor, `docker compose logs -f api` e o `/health` respondem as perguntas que aparecem. O que mudaria isso: log em JSON com `request_id` quando os logs forem para um agregador; um `/metrics` no padrão Prometheus (latência por rota, taxa de `502` do ViaCEP, uso da cota de requisições) quando houver mais de uma réplica ou um SLA de latência; tracing via OpenTelemetry quando a pergunta virar "qual dos serviços gastou os 800ms".
+- **Circuit breaker na chamada ao ViaCEP.** As [retentativas](#decisões-técnicas) cobrem a falha passageira (um timeout, um `503` isolado). Elas não cobrem o ViaCEP fora do ar por minutos: nesse cenário, **toda** requisição ainda paga os ≈ 9,6s do pior caso antes de falhar, e o custo é pago por cliente. Um disjuntor abriria após N falhas seguidas e passaria a responder `502` de imediato, testando o serviço de novo só depois de um intervalo. O sinal para adotá-lo é volume: com poucas requisições o desperdício é invisível; com muitas, ele vira fila e consumo de conexões.
+- **Escala horizontal.** Só uma coisa quebra ao subir a segunda réplica: o [contador do rate limit](#decisões-técnicas), que vive na memória do processo e passaria a valer por réplica. O resto acompanha sem mudança, porque a API não guarda estado entre requisições, o `POST` é atômico no banco e as migrations rodam no start. Antes de replicar, o contador precisa ir para um Redis ou para a borda.
+- **Cache de leitura.** `GET /api/v1/enderecos/{cep}` consulta o banco toda vez. Como o dado de um CEP praticamente não muda, seria o candidato óbvio a um cache com TTL longo, e a invalidação sairia de graça no `POST` e no `DELETE`. Fora de escopo porque uma consulta por chave única em um índice não é gargalo nenhum nesta escala. O gatilho seria volume de leitura que apareça no tempo de resposta.
 
 ---
 
