@@ -1,11 +1,19 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.api.dependencies import EnderecoServiceDep
+from app.core.security import verificar_api_key
 from app.schemas.endereco import EnderecoLista, EnderecoOut, ErroResposta
 
-router = APIRouter(prefix="/enderecos", tags=["Endereços"])
+router = APIRouter(
+    prefix="/enderecos",
+    tags=["Endereços"],
+    dependencies=[Depends(verificar_api_key)],
+    responses={
+        401: {"model": ErroResposta, "description": "Chave de API ausente ou inválida"}
+    },
+)
 
 CepPath = Annotated[
     str,
