@@ -1,5 +1,12 @@
 # API de Endereços — Desafio Técnico ViaCEP
 
+[![CI](https://github.com/caarlosandree/desafio-tecnico-viacep/actions/workflows/ci.yml/badge.svg)](https://github.com/caarlosandree/desafio-tecnico-viacep/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.14-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
+![Cobertura](https://img.shields.io/badge/cobertura-94%25-brightgreen)
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-yellow.svg)](LICENSE)
+
 API REST que **extrai endereços da API pública [ViaCEP](https://viacep.com.br)**, **armazena no PostgreSQL** e **disponibiliza os dados para consulta remota**, com documentação Swagger e ambiente completo em Docker.
 
 | Requisito do desafio | Como foi atendido |
@@ -25,6 +32,8 @@ API REST que **extrai endereços da API pública [ViaCEP](https://viacep.com.br)
 - [Desenvolvimento local (sem Docker)](#desenvolvimento-local-sem-docker)
 - [Testes e qualidade](#testes-e-qualidade)
 - [Decisões técnicas](#decisões-técnicas)
+- [CI e fluxo de contribuição](#ci-e-fluxo-de-contribuição)
+- [Licença](#licença)
 - [Solução de problemas](#solução-de-problemas)
 
 ---
@@ -81,6 +90,8 @@ Fluxo de um `POST /api/v1/enderecos/{cep}`:
 ├── tests/                     # testes unitários e de integração
 ├── docs/postman/              # collection do Postman
 ├── scripts/start.sh           # aplica migrations e inicia a API (container)
+├── .github/                   # CI, Dependabot, templates de PR e issues
+├── pyproject.toml             # configuração do ruff, pytest e coverage
 ├── Dockerfile
 ├── docker-compose.yml
 ├── test_main.http             # requisições para o HTTP Client do PyCharm
@@ -96,10 +107,10 @@ Fluxo de um `POST /api/v1/enderecos/{cep}`:
 
 1. **Clone o repositório e entre na pasta:**
    ```bash
-   git clone <url-do-repositorio>
+   git clone https://github.com/caarlosandree/desafio-tecnico-viacep.git
    ```
    ```bash
-   cd desafioTecnico
+   cd desafio-tecnico-viacep
    ```
 
 2. **Crie o arquivo `.env`** a partir do exemplo:
@@ -438,6 +449,44 @@ Sem o banco disponível, os testes que dependem dele são marcados como *skipped
 - **Migrations versionadas com Alembic:** a estrutura do banco é reproduzível e o container aplica as migrations ao iniciar. As constraints têm nomes padronizados (`pk_`, `uq_`, `ck_`, `ix_`).
 - **Contêiner enxuto e seguro:** imagem `python:3.14-slim`, execução com usuário não-root, healthcheck no `/health` e `.dockerignore` excluindo `.env`, testes e caches.
 - **Versões fixadas:** as dependências Python e as imagens Docker (`postgres:18-alpine`) têm versões fixas, para o ambiente ser reproduzível.
+
+---
+
+## CI e fluxo de contribuição
+
+O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda a cada push e pull request na `main`. Ele tem três jobs:
+
+| Job | O que valida |
+|---|---|
+| **Lint** | `ruff check` (inclui regras de segurança do Bandit) e `ruff format --check` |
+| **Testes** | Migrations com upgrade, downgrade e `alembic check`, mais o `pytest` com cobertura mínima de 90% contra um PostgreSQL 18 real |
+| **Docker** | Build da imagem, `docker compose up --wait` e smoke test (`/health`, 401 sem chave, 200 com chave, `/docs`) |
+
+**Proteção da `main`:** a branch só aceita alterações via pull request com os três jobs passando.
+
+**Dependências:** o Dependabot abre PRs semanais para os pacotes Python, as imagens Docker e as GitHub Actions.
+
+**Fluxo sugerido:**
+
+1. Crie uma branch a partir da `main` (`feat/...`, `fix/...`, `docs/...`).
+2. Faça commits no padrão [Conventional Commits](https://www.conventionalcommits.org/pt-br/), por exemplo `feat(backend): ...` ou `fix: ...`.
+3. Abra um pull request. O template traz o checklist de verificação.
+
+Para rodar as mesmas verificações automaticamente a cada commit, instale o [pre-commit](https://pre-commit.com):
+
+```bash
+pip install pre-commit
+```
+
+```bash
+pre-commit install
+```
+
+---
+
+## Licença
+
+Distribuído sob a licença MIT. Veja [LICENSE](LICENSE).
 
 ---
 
