@@ -25,7 +25,7 @@ async def tratar_erro_viacep(request: Request, exc: ViaCepError) -> JSONResponse
         status.HTTP_500_INTERNAL_SERVER_ERROR,
     )
     if status_code >= 500:
-        logger.warning("Falha ao consultar o ViaCEP: %s", exc)
+        logger.warning("%s %s: %s", request.method, request.url.path, exc)
     return JSONResponse(status_code=status_code, content={"detail": str(exc)})
 
 

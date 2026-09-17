@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
@@ -91,6 +93,21 @@ async def test_importar_viacep_fora_do_ar_retorna_502(client, viacep):
 
     assert response.status_code == 502
     assert "ViaCEP" in response.json()["detail"]
+
+
+async def test_falha_do_viacep_e_logada_com_a_rota(client, viacep, caplog):
+    viacep.erro = ViaCepIndisponivelError("tempo de resposta excedido")
+
+    with caplog.at_level(logging.WARNING, logger="app.api.errors"):
+        await client.post(f"{URL}/{SE.cep}")
+
+    (registro,) = caplog.records
+    mensagem = registro.getMessage()
+    assert mensagem == (
+        f"POST {URL}/{SE.cep}: Falha ao consultar o ViaCEP: tempo de resposta excedido"
+    )
+    # O prefixo vem da exceção; o handler não pode repeti-lo.
+    assert mensagem.count("Falha ao consultar o ViaCEP") == 1
 
 
 # ---------- GET /enderecos ----------
