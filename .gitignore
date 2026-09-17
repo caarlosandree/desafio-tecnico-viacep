@@ -1,0 +1,144 @@
+# ==========================================================
+# Python
+# ==========================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribuição / empacotamento
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+*.egg
+.installed.cfg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# PyInstaller
+*.manifest
+*.spec
+
+# ==========================================================
+# Ambientes virtuais
+# ==========================================================
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+__pypackages__/
+.pdm-python
+.pdm-build/
+
+# ==========================================================
+# Variáveis de ambiente e segredos
+# ==========================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# ==========================================================
+# Testes, cobertura e type checking
+# ==========================================================
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+*.py,cover
+nosetests.xml
+.hypothesis/
+.cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+cython_debug/
+
+# ==========================================================
+# Bancos de dados locais
+# ==========================================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# ==========================================================
+# Logs e arquivos temporários
+# ==========================================================
+logs/
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# ==========================================================
+# Jupyter
+# ==========================================================
+.ipynb_checkpoints/
+
+# ==========================================================
+# IDEs e editores
+# ==========================================================
+# JetBrains (PyCharm)
+.idea/
+*.iml
+out/
+
+# VS Code
+.vscode/
+!.vscode/settings.json.example
+
+# Outros
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+
+# Claude Code (configurações locais)
+.claude/settings.local.json
+
+# ==========================================================
+# Sistema operacional
+# ==========================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
