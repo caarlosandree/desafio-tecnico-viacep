@@ -62,7 +62,8 @@ async def test_importar_mesmo_cep_nao_duplica(client):
     primeiro = await client.post(f"{URL}/{SE.cep}")
     segundo = await client.post(f"{URL}/{SE.cep}")
 
-    assert segundo.status_code == 201
+    assert primeiro.status_code == 201
+    assert segundo.status_code == 200
     assert segundo.json()["id"] == primeiro.json()["id"]
     assert (await client.get(URL)).json()["total"] == 1
 

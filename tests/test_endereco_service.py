@@ -18,8 +18,9 @@ async def importar_todos(service: EnderecoService) -> None:
 
 
 async def test_importar_salva_endereco(service):
-    endereco = await service.importar("01001-000")
+    endereco, criado = await service.importar("01001-000")
 
+    assert criado is True
     assert endereco.id is not None
     assert endereco.cep == "01001000"
     assert endereco.logradouro == "Praça da Sé"
@@ -29,21 +30,24 @@ async def test_importar_salva_endereco(service):
 
 
 async def test_importar_mesmo_cep_nao_duplica(service):
-    primeiro = await service.importar("01001000")
-    segundo = await service.importar("01001-000")
+    primeiro, _ = await service.importar("01001000")
+    segundo, criado = await service.importar("01001-000")
 
+    assert criado is False
     _, total = await service.listar()
     assert total == 1
     assert segundo.id == primeiro.id
 
 
 async def test_importar_novamente_atualiza_dados(service, viacep):
-    original = await service.importar(SE.cep)
+    original, _ = await service.importar(SE.cep)
 
     viacep.enderecos[SE.cep] = SE.model_copy(
         update={"logradouro": "Praça da Sé (novo)"}
     )
-    atualizado = await service.importar(SE.cep)
+    atualizado, criado = await service.importar(SE.cep)
+
+    assert criado is False
 
     assert atualizado.id == original.id
     assert atualizado.logradouro == "Praça da Sé (novo)"

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, literal_column, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,8 +13,12 @@ class EnderecoService:
         self._session = session
         self._viacep = viacep
 
-    async def importar(self, cep: str) -> Endereco:
-        """Consulta o ViaCEP e grava o endereço, atualizando-o se o CEP já existir."""
+    async def importar(self, cep: str) -> tuple[Endereco, bool]:
+        """Consulta o ViaCEP e grava o endereço, atualizando-o se o CEP já existir.
+
+        Retorna o endereço e um flag: True se o registro foi criado agora,
+        False se um registro existente foi atualizado.
+        """
         dados = (await self._viacep.buscar(cep)).model_dump()
 
         stmt = insert(Endereco).values(**dados)
@@ -24,14 +28,20 @@ class EnderecoService:
         stmt = stmt.on_conflict_do_update(
             index_elements=[Endereco.cep],
             set_={**campos_atualizados, "updated_at": func.now()},
-        ).returning(Endereco)
-
-        endereco = await self._session.scalar(
-            stmt, execution_options={"populate_existing": True}
+        ).returning(
+            Endereco,
+            # xmax = 0 identifica linha inserida (não atualizada) nesta transação
+            literal_column("xmax = 0").label("criado"),
         )
 
+        endereco, criado = (
+            await self._session.execute(
+                stmt, execution_options={"populate_existing": True}
+            )
+        ).one()
+
         await self._session.commit()
-        return endereco
+        return endereco, criado
 
     async def obter(self, cep: str) -> Endereco | None:
         stmt = select(Endereco).where(Endereco.cep == normalizar_cep(cep))

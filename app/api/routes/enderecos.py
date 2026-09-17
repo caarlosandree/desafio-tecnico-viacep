@@ -1,6 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+    Response,
+    status,
+)
 
 from app.api.dependencies import EnderecoServiceDep
 from app.core.security import verificar_api_key
@@ -40,13 +48,22 @@ def _nao_encontrado(cep: str) -> HTTPException:
     summary="Extrai um endereço do ViaCEP e salva na base",
     description="Se o CEP já existir, os dados são atualizados em vez de duplicados.",
     responses={
+        200: {
+            "model": EnderecoOut,
+            "description": "CEP já existia na base; dados atualizados",
+        },
         **ERRO_CEP_INVALIDO,
         404: {"model": ErroResposta, "description": "CEP não existe no ViaCEP"},
         502: {"model": ErroResposta, "description": "ViaCEP indisponível"},
     },
 )
-async def importar_endereco(cep: CepPath, service: EnderecoServiceDep):
-    return await service.importar(cep)
+async def importar_endereco(
+    cep: CepPath, service: EnderecoServiceDep, response: Response
+):
+    endereco, criado = await service.importar(cep)
+    if not criado:
+        response.status_code = status.HTTP_200_OK
+    return endereco
 
 
 @router.get(

@@ -183,7 +183,7 @@ Base: `http://localhost:8000`
 | Método | Rota | Descrição | Sucesso | Erros |
 |---|---|---|---|---|
 | `GET` | `/health` | Verifica a API e a conexão com o banco | 200 | 503 |
-| `POST` | `/api/v1/enderecos/{cep}` | Extrai o endereço do ViaCEP e salva (upsert) | 201 | 401, 404, 422, 502 |
+| `POST` | `/api/v1/enderecos/{cep}` | Extrai o endereço do ViaCEP e salva (upsert) | 201 (novo), 200 (atualizado) | 401, 404, 422, 502 |
 | `GET` | `/api/v1/enderecos` | Lista os endereços salvos, com filtros e paginação | 200 | 401, 422 |
 | `GET` | `/api/v1/enderecos/{cep}` | Consulta um endereço salvo (não chama o ViaCEP) | 200 | 401, 404, 422 |
 | `DELETE` | `/api/v1/enderecos/{cep}` | Remove um endereço salvo | 204 | 401, 404, 422 |
@@ -445,6 +445,7 @@ Sem o banco disponível, os testes que dependem dele são marcados como *skipped
 - **Camadas separadas (rota → serviço → cliente/banco):** as rotas não conhecem HTTP externo nem SQL. O serviço recebe suas dependências por injeção, o que permite testá-lo com um ViaCEP falso.
 - **Tudo assíncrono:** como o FastAPI, o httpx e o SQLAlchemy usam `async`, a espera pelo ViaCEP ou pelo banco não bloqueia outras requisições. Um único `httpx.AsyncClient` é compartilhado pela aplicação, criado no `lifespan`.
 - **Upsert atômico:** um único `INSERT ... ON CONFLICT` evita a condição de corrida de "consultar e depois inserir" e garante um registro por CEP.
+- **Idempotência com chave natural:** o CEP é a chave de deduplicação — `POST` repetido atualiza o registro e responde `200` em vez de `201` (detectado via `xmax` no `RETURNING`), e `DELETE` repetido retorna `404` sem alterar o estado, informando ao cliente que o recurso já não existia.
 - **Exceções de domínio:** `CepInvalidoError`, `CepNaoEncontradoError` e `ViaCepIndisponivelError` isolam o resto do código do `httpx`. Um único handler as converte em 422, 404 e 502.
 - **Migrations versionadas com Alembic:** a estrutura do banco é reproduzível e o container aplica as migrations ao iniciar. As constraints têm nomes padronizados (`pk_`, `uq_`, `ck_`, `ix_`).
 - **Contêiner enxuto e seguro:** imagem `python:3.14-slim`, execução com usuário não-root, healthcheck no `/health` e `.dockerignore` excluindo `.env`, testes e caches.
