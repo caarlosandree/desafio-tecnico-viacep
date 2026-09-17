@@ -1,0 +1,29 @@
+# Git e IDEs
+.git
+.gitignore
+.idea
+.vscode
+.claude
+
+# Ambiente e segredos (as variáveis chegam pelo docker-compose)
+.venv
+.env
+.env.*
+
+# Caches e artefatos
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Não fazem parte da imagem
+tests
+docs
+*.md
+*.http
+requirements-dev.txt
+docker-compose*.yml
+Dockerfile
+.dockerignore
