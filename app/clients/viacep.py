@@ -77,7 +77,7 @@ class ViaCepClient:
         """Busca o JSON do ViaCEP, repetindo enquanto a falha for temporária.
 
         A espera entre as tentativas dobra a cada repetição. Só um GET (idempotente)
-        é repetido, e apenas para timeout, falha de rede ou status 429/5xx — erros
+        é repetido, e apenas para timeout, falha de rede ou status 429/5xx. Erros
         4xx e respostas malformadas falham de imediato, porque repeti-las não muda
         o resultado.
         """

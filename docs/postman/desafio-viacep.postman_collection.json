@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Desafio ViaCEP - API de Endereços",
-    "description": "Extrai endereços do ViaCEP, salva no PostgreSQL e expõe para consulta.\n\n**Como usar**\n1. Suba o ambiente: `docker compose up -d --build`\n2. Em *Variables*, defina `apiKey` com o valor de `API_KEY` do seu `.env`.\n3. Rode a collection inteira (*Run collection*) — as pastas estão na ordem de execução e cada requisição tem testes automáticos.\n\nA autenticação (header `X-API-Key`) é herdada da collection; `/health` e `/openapi.json` são públicos.",
+    "description": "Extrai endereços do ViaCEP, salva no PostgreSQL e expõe para consulta.\n\n**Como usar**\n1. Suba o ambiente: `docker compose up -d --build`\n2. Em *Variables*, defina `apiKey` com o valor de `API_KEY` do seu `.env`.\n3. Rode a collection inteira (*Run collection*). As pastas estão na ordem de execução e cada requisição tem testes automáticos.\n\nA autenticação (header `X-API-Key`) é herdada da collection; `/health` e `/openapi.json` são públicos.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {

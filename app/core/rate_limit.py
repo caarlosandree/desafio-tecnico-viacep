@@ -23,7 +23,7 @@ class LimitadorDeTaxa:
     """Janela deslizante: guarda o instante das requisições recentes de cada cliente.
 
     O estado vive no processo. Com mais de um worker ou réplica, cada um aplica o
-    próprio limite — para valer no conjunto, o contador precisaria ficar em um Redis
+    próprio limite. Para valer no conjunto, o contador precisaria ficar em um Redis
     ou na borda (proxy reverso, API gateway).
     """
 
