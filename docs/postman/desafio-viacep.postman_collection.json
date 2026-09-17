@@ -100,7 +100,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Status 201 ou 200\", () => pm.expect(pm.response.code).to.be.oneOf([201, 200]));",
                   "const corpo = pm.response.json();",
                   "pm.test(\"CEP salvo sem hífen\", () => pm.expect(corpo.cep).to.eql(pm.collectionVariables.get(\"cepNormalizado\")));",
                   "pm.test(\"Campos preenchidos\", () => pm.expect(corpo).to.include.keys(\"id\", \"logradouro\", \"localidade\", \"uf\", \"created_at\"));",
@@ -140,7 +140,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));"
+                  "pm.test(\"Status 201 ou 200\", () => pm.expect(pm.response.code).to.be.oneOf([201, 200]));"
                 ]
               }
             }
@@ -175,7 +175,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"Mesmo id do primeiro import\", () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"enderecoId\"))));"
                 ]
               }
@@ -201,7 +201,7 @@
                 "{{cep}}"
               ]
             },
-            "description": "Se o CEP já existe, os dados são atualizados em vez de duplicados."
+            "description": "Se o CEP já existe, os dados são atualizados em vez de duplicados e a resposta é 200 em vez de 201."
           }
         },
         {
