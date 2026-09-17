@@ -53,6 +53,17 @@ async def test_importar_novamente_atualiza_dados(service, viacep):
     assert atualizado.logradouro == "Praça da Sé (novo)"
 
 
+async def test_importar_novamente_preserva_created_at(service):
+    original, _ = await service.importar(SE.cep)
+    criado_em = original.created_at
+
+    atualizado, criado = await service.importar(SE.cep)
+
+    assert criado is False
+    # O UPDATE mexe só nos campos vindos do ViaCEP e no updated_at.
+    assert atualizado.created_at == criado_em
+
+
 async def test_importar_cep_inexistente_nao_salva(service):
     with pytest.raises(CepNaoEncontradoError):
         await service.importar("99999999")
