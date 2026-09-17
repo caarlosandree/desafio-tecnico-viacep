@@ -22,7 +22,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="Extrai endereços do ViaCEP, armazena no PostgreSQL e expõe para consulta.",
+    description=(
+        "Extrai endereços do ViaCEP, armazena no PostgreSQL e expõe para consulta."
+    ),
     lifespan=lifespan,
 )
 

@@ -1,0 +1,46 @@
+[project]
+name = "desafio-tecnico-viacep"
+version = "0.1.0"
+description = "API REST que extrai endereços do ViaCEP, armazena no PostgreSQL e expõe para consulta."
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+authors = [{ name = "Carlos André Sabino" }]
+
+# As dependências ficam em requirements.txt / requirements-dev.txt (versões fixadas).
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "W",   # pycodestyle (avisos)
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "S",   # flake8-bandit (segurança)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]  # assert e senhas fictícias são esperados em testes
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 90
