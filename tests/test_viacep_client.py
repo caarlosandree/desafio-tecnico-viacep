@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from app.clients import viacep
 from app.clients.exceptions import (
     CepInvalidoError,
     CepNaoEncontradoError,
@@ -28,12 +29,14 @@ RESPOSTA_SUCESSO = {
 }
 
 
-def criar_cliente(handler) -> ViaCepClient:
+def criar_cliente(handler, tentativas: int = 1, backoff: float = 0.0) -> ViaCepClient:
     transport = httpx.MockTransport(handler)
     return ViaCepClient(
         base_url=BASE_URL,
         timeout=1.0,
         http_client=httpx.AsyncClient(transport=transport),
+        tentativas=tentativas,
+        backoff_inicial=backoff,
     )
 
 
@@ -141,3 +144,118 @@ async def test_buscar_resposta_sem_campos_obrigatorios():
 
     with pytest.raises(ViaCepIndisponivelError, match="formato inesperado"):
         await criar_cliente(handler).buscar("01001000")
+
+
+# ---------- Retentativas ----------
+
+
+def falha_depois_sucesso(falhas: int, resposta_de_falha):
+    """Handler que falha as `falhas` primeiras vezes e depois responde com sucesso."""
+    chamadas = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas.append(request)
+        if len(chamadas) <= falhas:
+            return resposta_de_falha(request)
+        return httpx.Response(200, json=RESPOSTA_SUCESSO)
+
+    return handler, chamadas
+
+
+def _timeout(request: httpx.Request) -> httpx.Response:
+    raise httpx.ReadTimeout("timeout", request=request)
+
+
+def _erro_de_conexao(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("sem conexão", request=request)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "resposta_de_falha",
+    [
+        _timeout,
+        _erro_de_conexao,
+        lambda request: httpx.Response(503),
+        lambda request: httpx.Response(429),
+    ],
+    ids=["timeout", "conexão", "503", "429"],
+)
+async def test_buscar_repete_falha_temporaria_e_tem_sucesso(resposta_de_falha):
+    handler, chamadas = falha_depois_sucesso(2, resposta_de_falha)
+
+    endereco = await criar_cliente(handler, tentativas=3).buscar("01001000")
+
+    assert endereco.cep == "01001000"
+    assert len(chamadas) == 3
+
+
+@pytest.mark.anyio
+async def test_buscar_desiste_apos_esgotar_tentativas():
+    chamadas = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas.append(request)
+        return httpx.Response(503)
+
+    with pytest.raises(ViaCepIndisponivelError):
+        await criar_cliente(handler, tentativas=3).buscar("01001000")
+
+    assert len(chamadas) == 3
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "resposta",
+    [
+        lambda request: httpx.Response(400),
+        lambda request: httpx.Response(404),
+        lambda request: httpx.Response(200, text="<html>erro</html>"),
+        lambda request: httpx.Response(200, json={"cep": "01001-000"}),
+    ],
+    ids=["400", "404", "não-json", "formato inesperado"],
+)
+async def test_buscar_nao_repete_falha_definitiva(resposta):
+    chamadas = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas.append(request)
+        return resposta(request)
+
+    with pytest.raises(ViaCepIndisponivelError):
+        await criar_cliente(handler, tentativas=3).buscar("01001000")
+
+    assert len(chamadas) == 1
+
+
+@pytest.mark.anyio
+async def test_buscar_cep_inexistente_nao_repete():
+    chamadas = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas.append(request)
+        return httpx.Response(200, json={"erro": "true"})
+
+    with pytest.raises(CepNaoEncontradoError):
+        await criar_cliente(handler, tentativas=3).buscar("99999999")
+
+    assert len(chamadas) == 1
+
+
+@pytest.mark.anyio
+async def test_backoff_dobra_a_cada_tentativa(monkeypatch):
+    esperas = []
+
+    async def sleep_falso(segundos: float) -> None:
+        esperas.append(segundos)
+
+    monkeypatch.setattr(viacep.asyncio, "sleep", sleep_falso)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    with pytest.raises(ViaCepIndisponivelError):
+        await criar_cliente(handler, tentativas=3, backoff=0.2).buscar("01001000")
+
+    # Duas esperas para três tentativas: nada de dormir depois da última.
+    assert esperas == [0.2, 0.4]

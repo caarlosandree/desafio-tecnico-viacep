@@ -17,6 +17,8 @@ async def get_viacep_client(request: Request) -> ViaCepClient:
         base_url=settings.viacep_base_url,
         timeout=settings.http_timeout,
         http_client=getattr(request.app.state, "http_client", None),
+        tentativas=settings.viacep_tentativas,
+        backoff_inicial=settings.viacep_backoff_inicial,
     )
 
 

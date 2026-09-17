@@ -352,7 +352,9 @@ Definidas no `.env` (modelo em [`.env.example`](.env.example)):
 | `DATABASE_URL` | sim, fora do Docker | — | URL do banco usada ao rodar a API localmente. No Compose, ela é montada a partir das variáveis `POSTGRES_*`, com o host `db` |
 | `APP_NAME` | não | `API de Endereços` | Título exibido no Swagger |
 | `VIACEP_BASE_URL` | não | `https://viacep.com.br/ws` | URL base do ViaCEP |
-| `HTTP_TIMEOUT` | não | `5` | Timeout, em segundos, das chamadas ao ViaCEP |
+| `HTTP_TIMEOUT` | não | `3` | Timeout, em segundos, de **cada** chamada ao ViaCEP |
+| `VIACEP_TENTATIVAS` | não | `3` | Tentativas por consulta ao ViaCEP (1 desliga a repetição; máximo 5) |
+| `VIACEP_BACKOFF_INICIAL` | não | `0.2` | Espera, em segundos, antes de repetir; dobra a cada tentativa |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | não | `postgres` / `postgres` / `enderecos` | Credenciais do container do banco |
 | `API_PORT` | não | `8000` | Porta da API na máquina |
 | `POSTGRES_PORT` | não | `5432` | Porta do banco na máquina |
@@ -446,6 +448,7 @@ Sem o banco disponível, os testes que dependem dele são marcados como *skipped
 - **Tudo assíncrono:** como o FastAPI, o httpx e o SQLAlchemy usam `async`, a espera pelo ViaCEP ou pelo banco não bloqueia outras requisições. Um único `httpx.AsyncClient` é compartilhado pela aplicação, criado no `lifespan`.
 - **Upsert atômico:** um único `INSERT ... ON CONFLICT` evita a condição de corrida de "consultar e depois inserir" e garante um registro por CEP.
 - **Idempotência com chave natural:** o CEP é a chave de deduplicação — `POST` repetido atualiza o registro e responde `200` em vez de `201` (detectado via `xmax` no `RETURNING`), e `DELETE` repetido retorna `404` sem alterar o estado, informando ao cliente que o recurso já não existia.
+- **Retentativas só para falhas temporárias:** uma consulta ao ViaCEP é repetida até 3 vezes, com espera que dobra a cada tentativa (0,2s e depois 0,4s), quando a falha é timeout, erro de rede ou status `429`/`5xx`. Erros `4xx`, respostas malformadas e CEP inexistente falham de imediato — repeti-los não mudaria o resultado e só atrasaria a resposta. Como o pior caso soma os timeouts de todas as tentativas, o `HTTP_TIMEOUT` padrão é 3s: 3 × 3s + 0,6s de espera ≈ 9,6s no limite. A espera é determinística, sem *jitter*: com uma única instância não existe efeito manada; com várias réplicas, valeria adicioná-lo.
 - **Exceções de domínio:** `CepInvalidoError`, `CepNaoEncontradoError` e `ViaCepIndisponivelError` isolam o resto do código do `httpx`. Um único handler as converte em 422, 404 e 502.
 - **Migrations versionadas com Alembic:** a estrutura do banco é reproduzível e o container aplica as migrations ao iniciar. As constraints têm nomes padronizados (`pk_`, `uq_`, `ck_`, `ix_`).
 - **Contêiner enxuto e seguro:** imagem `python:3.14-slim`, execução com usuário não-root, healthcheck no `/health` e `.dockerignore` excluindo `.env`, testes e caches.
