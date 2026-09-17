@@ -25,6 +25,7 @@ API REST que **extrai endereços da API pública [ViaCEP](https://viacep.com.br)
 - [Arquitetura](#arquitetura)
 - [Como executar (Docker)](#como-executar-docker)
 - [Autenticação](#autenticação)
+- [Limite de requisições](#limite-de-requisições)
 - [Endpoints](#endpoints)
 - [Acessando os dados remotamente](#acessando-os-dados-remotamente)
 - [Modelo de dados](#modelo-de-dados)
@@ -176,6 +177,23 @@ X-API-Key: <valor de API_KEY no .env>
 
 ---
 
+## Limite de requisições
+
+Cada cliente pode fazer **60 requisições por minuto** nas rotas de `/api/v1/enderecos`. Os valores vêm de `RATE_LIMIT_REQUISICOES` e `RATE_LIMIT_JANELA`; `RATE_LIMIT_REQUISICOES=0` desliga o limite.
+
+Toda resposta traz o estado atual da cota:
+
+```
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 57
+```
+
+Ao estourar, a API responde `429` com `Retry-After` (em segundos) e `{"detail": "Limite de requisições excedido. Tente de novo em instantes."}`. O `/health` fica de fora, para o healthcheck do Docker não consumir a cota.
+
+O cliente é identificado pelo IP. Atrás de um proxy, o uvicorn roda com `--proxy-headers`, então o IP considerado é o do `X-Forwarded-For` — o que exige confiar no proxy à frente da API.
+
+---
+
 ## Endpoints
 
 Base: `http://localhost:8000`
@@ -183,10 +201,10 @@ Base: `http://localhost:8000`
 | Método | Rota | Descrição | Sucesso | Erros |
 |---|---|---|---|---|
 | `GET` | `/health` | Verifica a API e a conexão com o banco | 200 | 503 |
-| `POST` | `/api/v1/enderecos/{cep}` | Extrai o endereço do ViaCEP e salva (upsert) | 201 (novo), 200 (atualizado) | 401, 404, 422, 502 |
-| `GET` | `/api/v1/enderecos` | Lista os endereços salvos, com filtros e paginação | 200 | 401, 422 |
-| `GET` | `/api/v1/enderecos/{cep}` | Consulta um endereço salvo (não chama o ViaCEP) | 200 | 401, 404, 422 |
-| `DELETE` | `/api/v1/enderecos/{cep}` | Remove um endereço salvo | 204 | 401, 404, 422 |
+| `POST` | `/api/v1/enderecos/{cep}` | Extrai o endereço do ViaCEP e salva (upsert) | 201 (novo), 200 (atualizado) | 401, 404, 422, 429, 502 |
+| `GET` | `/api/v1/enderecos` | Lista os endereços salvos, com filtros e paginação | 200 | 401, 422, 429 |
+| `GET` | `/api/v1/enderecos/{cep}` | Consulta um endereço salvo (não chama o ViaCEP) | 200 | 401, 404, 422, 429 |
+| `DELETE` | `/api/v1/enderecos/{cep}` | Remove um endereço salvo | 204 | 401, 404, 422, 429 |
 
 **Parâmetros de `GET /api/v1/enderecos`:**
 
@@ -204,6 +222,7 @@ Base: `http://localhost:8000`
 | `401` | Chave de API ausente ou inválida |
 | `404` | CEP não existe no ViaCEP (`POST`) ou não está na base (`GET` e `DELETE`) |
 | `422` | CEP sem 8 dígitos, ou parâmetro de consulta inválido |
+| `429` | Limite de requisições excedido; veja o header `Retry-After` |
 | `502` | ViaCEP fora do ar, lento (timeout) ou com resposta inesperada |
 
 Os erros seguem o formato `{"detail": "mensagem"}`.
@@ -355,6 +374,8 @@ Definidas no `.env` (modelo em [`.env.example`](.env.example)):
 | `HTTP_TIMEOUT` | não | `3` | Timeout, em segundos, de **cada** chamada ao ViaCEP |
 | `VIACEP_TENTATIVAS` | não | `3` | Tentativas por consulta ao ViaCEP (1 desliga a repetição; máximo 5) |
 | `VIACEP_BACKOFF_INICIAL` | não | `0.2` | Espera, em segundos, antes de repetir; dobra a cada tentativa |
+| `RATE_LIMIT_REQUISICOES` | não | `60` | Requisições por cliente a cada janela; `0` desliga o limite |
+| `RATE_LIMIT_JANELA` | não | `60` | Tamanho da janela, em segundos |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | não | `postgres` / `postgres` / `enderecos` | Credenciais do container do banco |
 | `API_PORT` | não | `8000` | Porta da API na máquina |
 | `POSTGRES_PORT` | não | `5432` | Porta do banco na máquina |
@@ -451,6 +472,7 @@ Sem o banco disponível, os testes que dependem dele são marcados como *skipped
 - **Retentativas só para falhas temporárias:** uma consulta ao ViaCEP é repetida até 3 vezes, com espera que dobra a cada tentativa (0,2s e depois 0,4s), quando a falha é timeout, erro de rede ou status `429`/`5xx`. Erros `4xx`, respostas malformadas e CEP inexistente falham de imediato — repeti-los não mudaria o resultado e só atrasaria a resposta. Como o pior caso soma os timeouts de todas as tentativas, o `HTTP_TIMEOUT` padrão é 3s: 3 × 3s + 0,6s de espera ≈ 9,6s no limite. A espera é determinística, sem *jitter*: com uma única instância não existe efeito manada; com várias réplicas, valeria adicioná-lo.
 - **Exceções de domínio:** `CepInvalidoError`, `CepNaoEncontradoError` e `ViaCepIndisponivelError` isolam o resto do código do `httpx`. Um único handler as converte em 422, 404 e 502.
 - **Migrations versionadas com Alembic:** a estrutura do banco é reproduzível e o container aplica as migrations ao iniciar. As constraints têm nomes padronizados (`pk_`, `uq_`, `ck_`, `ix_`).
+- **Limite de requisições em memória:** uma janela deslizante por IP protege a API e, de quebra, o ViaCEP, que é um serviço público e gratuito. Ficou sem dependência nova: são ~60 linhas em `app/core/rate_limit.py`, contra um `slowapi` que ainda exigiria `request: Request` na assinatura de cada endpoint. O preço é que **o contador vive no processo** — com vários workers ou réplicas, cada um aplica o próprio limite, e o teto real vira o número de processos vezes o configurado. Em produção, isso migra para um contador compartilhado (Redis) ou para a borda; aqui, com um container, o comportamento é o esperado.
 - **Contêiner enxuto e seguro:** imagem `python:3.14-slim`, execução com usuário não-root, healthcheck no `/health` e `.dockerignore` excluindo `.env`, testes e caches.
 - **Versão em um lugar só:** `app/__init__.py` guarda o `__version__`; o `main.py` o expõe no OpenAPI e o `pyproject.toml` o lê de lá (`[tool.setuptools.dynamic]`), em vez de repetir o número. `importlib.metadata` seria o caminho natural, mas exigiria instalar o projeto como distribuição — o container só instala as dependências e copia o `app/`, então a consulta cairia sempre no *fallback*, que é o mesmo *hardcode* com mais cerimônia.
 - **Versões fixadas:** as dependências Python e as imagens Docker (`postgres:18-alpine`) têm versões fixas, para o ambiente ser reproduzível.

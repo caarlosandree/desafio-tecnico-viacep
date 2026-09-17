@@ -11,15 +11,17 @@ from fastapi import (
 )
 
 from app.api.dependencies import EnderecoServiceDep
+from app.core.rate_limit import limitar_taxa
 from app.core.security import verificar_api_key
 from app.schemas.endereco import EnderecoLista, EnderecoOut, ErroResposta
 
 router = APIRouter(
     prefix="/enderecos",
     tags=["Endereços"],
-    dependencies=[Depends(verificar_api_key)],
+    dependencies=[Depends(verificar_api_key), Depends(limitar_taxa)],
     responses={
-        401: {"model": ErroResposta, "description": "Chave de API ausente ou inválida"}
+        401: {"model": ErroResposta, "description": "Chave de API ausente ou inválida"},
+        429: {"model": ErroResposta, "description": "Limite de requisições excedido"},
     },
 )
 

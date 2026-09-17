@@ -22,7 +22,8 @@ API_KEY_TESTE = "chave-de-teste"
 async def client(session, viacep):
     """Cliente HTTP que já envia a chave de API válida."""
     settings_teste = get_settings().model_copy(
-        update={"api_key": SecretStr(API_KEY_TESTE)}
+        # O limite de requisições é exercitado em tests/test_rate_limit.py.
+        update={"api_key": SecretStr(API_KEY_TESTE), "rate_limit_requisicoes": 0}
     )
     app.dependency_overrides[get_settings] = lambda: settings_teste
     app.dependency_overrides[get_session] = lambda: session

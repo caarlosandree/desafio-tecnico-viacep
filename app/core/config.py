@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     viacep_tentativas: int = Field(default=3, ge=1, le=5)
     # Espera antes de repetir; dobra a cada nova tentativa.
     viacep_backoff_inicial: float = Field(default=0.2, ge=0)
+    # Limite de requisições por cliente, por janela. 0 desliga o limite.
+    rate_limit_requisicoes: int = Field(default=60, ge=0)
+    rate_limit_janela: float = Field(default=60.0, gt=0)
     api_key: SecretStr
 
     model_config = SettingsConfigDict(
