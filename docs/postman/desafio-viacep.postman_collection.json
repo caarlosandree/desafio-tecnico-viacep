@@ -1,0 +1,732 @@
+{
+  "info": {
+    "name": "Desafio ViaCEP - API de Endereços",
+    "description": "Extrai endereços do ViaCEP, salva no PostgreSQL e expõe para consulta.\n\n**Como usar**\n1. Suba o ambiente: `docker compose up -d --build`\n2. Em *Variables*, defina `apiKey` com o valor de `API_KEY` do seu `.env`.\n3. Rode a collection inteira (*Run collection*) — as pastas estão na ordem de execução e cada requisição tem testes automáticos.\n\nA autenticação (header `X-API-Key`) é herdada da collection; `/health` e `/openapi.json` são públicos.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "apiKey",
+      "value": "troque-por-uma-chave-forte"
+    },
+    {
+      "key": "cep",
+      "value": "01001-000"
+    },
+    {
+      "key": "cepNormalizado",
+      "value": "01001000"
+    },
+    {
+      "key": "cep2",
+      "value": "01310-100"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health",
+      "item": [
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"API e banco ok\", () => pm.expect(pm.response.json()).to.eql({ status: \"ok\", banco: \"ok\" }));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Verifica a API e a conexão com o banco. Não exige chave.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Endereços",
+      "item": [
+        {
+          "name": "Extrair e salvar endereço",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "pm.test(\"CEP salvo sem hífen\", () => pm.expect(corpo.cep).to.eql(pm.collectionVariables.get(\"cepNormalizado\")));",
+                  "pm.test(\"Campos preenchidos\", () => pm.expect(corpo).to.include.keys(\"id\", \"logradouro\", \"localidade\", \"uf\", \"created_at\"));",
+                  "pm.collectionVariables.set(\"enderecoId\", corpo.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/{{cep}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "{{cep}}"
+              ]
+            },
+            "description": "Consulta o ViaCEP e grava o endereço. Aceita CEP com ou sem hífen."
+          }
+        },
+        {
+          "name": "Extrair segundo endereço",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/{{cep2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "{{cep2}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reimportar o mesmo CEP (não duplica)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Mesmo id do primeiro import\", () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"enderecoId\"))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/{{cep}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "{{cep}}"
+              ]
+            },
+            "description": "Se o CEP já existe, os dados são atualizados em vez de duplicados."
+          }
+        },
+        {
+          "name": "Listar endereços",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.test(\"Formato paginado\", () => pm.expect(corpo).to.have.keys(\"items\", \"total\", \"limit\", \"offset\"));",
+                  "pm.test(\"Contém os endereços importados\", () => pm.expect(corpo.total).to.be.at.least(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar por UF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Só endereços de SP\", () => pm.response.json().items.forEach((e) => pm.expect(e.uf).to.eql(\"SP\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos?uf=sp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos"
+              ],
+              "query": [
+                {
+                  "key": "uf",
+                  "value": "sp"
+                }
+              ]
+            },
+            "description": "A UF não diferencia maiúsculas de minúsculas."
+          }
+        },
+        {
+          "name": "Listar por cidade com paginação",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.test(\"No máximo 1 item\", () => pm.expect(corpo.items.length).to.be.at.most(1));",
+                  "pm.test(\"Filtro por parte do nome\", () => corpo.items.forEach((e) => pm.expect(e.localidade.toLowerCase()).to.include(\"paulo\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos?localidade=paulo&limit=1&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos"
+              ],
+              "query": [
+                {
+                  "key": "localidade",
+                  "value": "paulo"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar endereço salvo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Endereço retornado\", () => pm.expect(pm.response.json().cep).to.eql(pm.collectionVariables.get(\"cepNormalizado\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/{{cep}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "{{cep}}"
+              ]
+            },
+            "description": "Lê apenas a base; não consulta o ViaCEP."
+          }
+        },
+        {
+          "name": "Remover endereço",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/{{cep}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "{{cep}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remover segundo endereço",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/{{cep2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "{{cep2}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Erros esperados",
+      "item": [
+        {
+          "name": "Sem chave de API (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Header WWW-Authenticate\", () => pm.response.to.have.header(\"WWW-Authenticate\", \"ApiKey\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Chave de API inválida (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos"
+              ]
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "chave-errada",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CEP inexistente no ViaCEP (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Mensagem de erro\", () => pm.expect(pm.response.json().detail).to.include(\"não encontrado\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/99999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "99999999"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CEP inválido (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Mensagem de erro\", () => pm.expect(pm.response.json().detail).to.include(\"CEP inválido\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/123",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "123"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Parâmetro de listagem inválido (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos?uf=XYZ",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos"
+              ],
+              "query": [
+                {
+                  "key": "uf",
+                  "value": "XYZ"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CEP removido não está mais na base (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/enderecos/{{cep}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enderecos",
+                "{{cep}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Documentação",
+      "item": [
+        {
+          "name": "OpenAPI (Swagger em /docs)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Documenta a autenticação\", () => pm.expect(pm.response.json().components.securitySchemes).to.have.property(\"APIKeyHeader\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "openapi.json"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
