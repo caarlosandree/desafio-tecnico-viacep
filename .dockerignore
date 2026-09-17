@@ -27,3 +27,10 @@ requirements-dev.txt
 docker-compose*.yml
 Dockerfile
 .dockerignore
+
+# Configuração do repositório (não usada em runtime)
+.github
+.editorconfig
+.pre-commit-config.yaml
+pyproject.toml
+http-client.env.json

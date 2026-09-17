@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.14"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Instalar dependências
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff (lint)
+        run: ruff check --output-format=github .
+
+      - name: Ruff (formatação)
+        run: ruff format --check .
+
+  test:
+    name: Testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: enderecos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/enderecos
+      API_KEY: chave-somente-para-ci
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Instalar dependências
+        run: pip install -r requirements-dev.txt
+
+      - name: Migrations (upgrade, downgrade e consistência com os models)
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+          alembic check
+
+      - name: Testes com cobertura
+        run: pytest --cov --cov-report=term --cov-report=xml
+
+      - name: Publicar relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  docker:
+    name: Docker (build e smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, test]
+    env:
+      API_KEY: chave-somente-para-ci
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Subir API e banco
+        run: docker compose up -d --build --wait --wait-timeout 120
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:8000/health | tee /dev/stderr | grep -q '"banco":"ok"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/enderecos)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "X-API-Key: $API_KEY" http://localhost:8000/api/v1/enderecos)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/docs)" = "200"
+
+      - name: Logs em caso de falha
+        if: failure()
+        run: docker compose logs
+
+      - name: Derrubar ambiente
+        if: always()
+        run: docker compose down -v
