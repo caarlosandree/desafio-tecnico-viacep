@@ -1,6 +1,11 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "desafio-tecnico-viacep"
-version = "0.1.0"
+# A versão vive em app/__init__.py, para o runtime e os metadados não divergirem.
+dynamic = ["version"]
 description = "API REST que extrai endereços do ViaCEP, armazena no PostgreSQL e expõe para consulta."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -8,6 +13,12 @@ license = "MIT"
 authors = [{ name = "Carlos André Sabino" }]
 
 # As dependências ficam em requirements.txt / requirements-dev.txt (versões fixadas).
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "app.__version__" }
 
 [tool.ruff]
 target-version = "py314"

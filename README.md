@@ -452,6 +452,7 @@ Sem o banco disponível, os testes que dependem dele são marcados como *skipped
 - **Exceções de domínio:** `CepInvalidoError`, `CepNaoEncontradoError` e `ViaCepIndisponivelError` isolam o resto do código do `httpx`. Um único handler as converte em 422, 404 e 502.
 - **Migrations versionadas com Alembic:** a estrutura do banco é reproduzível e o container aplica as migrations ao iniciar. As constraints têm nomes padronizados (`pk_`, `uq_`, `ck_`, `ix_`).
 - **Contêiner enxuto e seguro:** imagem `python:3.14-slim`, execução com usuário não-root, healthcheck no `/health` e `.dockerignore` excluindo `.env`, testes e caches.
+- **Versão em um lugar só:** `app/__init__.py` guarda o `__version__`; o `main.py` o expõe no OpenAPI e o `pyproject.toml` o lê de lá (`[tool.setuptools.dynamic]`), em vez de repetir o número. `importlib.metadata` seria o caminho natural, mas exigiria instalar o projeto como distribuição — o container só instala as dependências e copia o `app/`, então a consulta cairia sempre no *fallback*, que é o mesmo *hardcode* com mais cerimônia.
 - **Versões fixadas:** as dependências Python e as imagens Docker (`postgres:18-alpine`) têm versões fixas, para o ambiente ser reproduzível.
 
 ---

@@ -2,6 +2,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 
+from app import __version__
 from app.api.dependencies import get_endereco_service
 from app.clients.exceptions import ViaCepIndisponivelError
 from app.core.config import get_settings
@@ -247,3 +248,13 @@ async def test_openapi_documenta_rotas(client):
     assert set(paths[URL]) == {"get"}
     assert set(paths[f"{URL}/{{cep}}"]) == {"post", "get", "delete"}
     assert "/health" in paths
+
+
+# ---------- Metadados ----------
+
+
+async def test_openapi_expoe_a_versao_do_pacote(client):
+    response = await client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert response.json()["info"]["version"] == __version__

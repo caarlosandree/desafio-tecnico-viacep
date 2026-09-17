@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
+from app import __version__
 from app.api.errors import registrar_handlers
 from app.api.routes import enderecos, health
 from app.core.config import get_settings
@@ -21,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version=__version__,
     description=(
         "Extrai endereços do ViaCEP, armazena no PostgreSQL e expõe para consulta."
     ),
