@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    app_name: str = "desafio-viacep"
+    app_name: str = "API de Endereços"
     database_url: str
     viacep_base_url: str = "https://viacep.com.br/ws"
     http_timeout: float = 5.0
