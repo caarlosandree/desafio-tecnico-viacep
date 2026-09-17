@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from app import models  # noqa: F401  (registra os models no metadata)
 from app.core.config import get_settings
 from app.db.base import Base
+from tests.fakes import COPACABANA, PAULISTA, SE, ViaCepFake
 
 
 @pytest.fixture
@@ -36,3 +37,8 @@ async def session():
         await transacao.rollback()
         await conexao.close()
         await engine.dispose()
+
+
+@pytest.fixture
+def viacep() -> ViaCepFake:
+    return ViaCepFake(SE, PAULISTA, COPACABANA)
